@@ -1,0 +1,15 @@
+* text=auto
+
+# Linux entry points must remain executable by bash when checked out on Windows.
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Native Windows launchers use Windows line endings.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary artifacts must never be line-ending normalized.
+*.jar binary
+*.png binary
+*.jpg binary
+*.gif binary

@@ -1,0 +1,49 @@
+# Gradle outputs and local caches
+.gradle/
+.gradle-user-home/
+**/build/
+build/
+
+# IDE metadata
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.vscode/
+out/
+bin/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Runtime artifacts: kernels, initramfs images, disks and benchmark results
+guest/artifacts/
+guest/cache/
+*.img
+*.qcow2
+*.raw
+*.iso
+*.cpio
+*.cpio.gz
+*.initrd
+*.vmlinuz
+*.bzImage
+benchmarks/results/
+*.jfr
+hs_err_pid*
+replay_pid*
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.log
+*.pid
+*.tmp
+*.swp
+*~
