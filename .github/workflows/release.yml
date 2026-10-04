@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Expected a stable SemVer tag like v0.1.0, got: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+          validate-wrappers: true
+          add-job-summary: on-failure
+
+      - name: Verify Gradle version matches tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          project_version="$(./gradlew -q properties | sed -n 's/^version: //p' | head -n 1)"
+
+          if [[ -z "$project_version" ]]; then
+            echo "Could not determine Gradle project version." >&2
+            exit 1
+          fi
+
+          if [[ "$project_version" != "$tag_version" ]]; then
+            echo "Version mismatch: tag=$tag_version, Gradle project=$project_version" >&2
+            exit 1
+          fi
+
+      - name: Build release
+        run: ./gradlew --no-daemon --stacktrace clean releaseArtifacts
+
+      - name: Create release checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd build/release
+          shopt -s nullglob
+          linux_archives=(panama-kvm-*-linux-x86_64.tar)
+          windows_archives=(panama-kvm-*-windows-x86_64.zip)
+
+          if (( ${#linux_archives[@]} != 1 || ${#windows_archives[@]} != 1 )); then
+            echo "Expected exactly one Linux x86-64 .tar and one Windows x86-64 .zip distribution." >&2
+            exit 1
+          fi
+
+          sha256sum -- "${linux_archives[0]}" "${windows_archives[0]}" > SHA256SUMS
+
+      - name: Upload release bundle to workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: panama-kvm-${{ github.ref_name }}
+          path: build/release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attest release artifacts
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            build/release/panama-kvm-*-linux-x86_64.tar
+            build/release/panama-kvm-*-windows-x86_64.zip
+            build/release/SHA256SUMS
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh release create "$GITHUB_REF_NAME" \
+            build/release/* \
+            --verify-tag \
+            --generate-notes \
+            --title "$GITHUB_REF_NAME"
