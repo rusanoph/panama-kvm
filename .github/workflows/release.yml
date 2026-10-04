@@ -34,6 +34,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v6
@@ -102,6 +104,15 @@ jobs:
             build/release/panama-kvm-*-windows-x86_64.zip
             build/release/SHA256SUMS
 
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          version: v2.14.2
+          config: cliff.toml
+          args: --current --verbose
+        env:
+          OUTPUT: release-notes.md
+
       - name: Create GitHub Release
         shell: bash
         env:
@@ -112,5 +123,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             build/release/* \
             --verify-tag \
-            --generate-notes \
-            --title "$GITHUB_REF_NAME"
+            --fail-on-no-commits \
+            --title "PanamaKVM $GITHUB_REF_NAME" \
+            --notes-file release-notes.md

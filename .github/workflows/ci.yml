@@ -17,6 +17,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-infrastructure:
+    name: Release infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Lint GitHub Actions workflows
+        uses: docker://rhysd/actionlint:1.7.12
+
+      - name: Validate release notes generation
+        uses: orhun/git-cliff-action@v4
+        with:
+          version: v2.14.2
+          config: cliff.toml
+          args: >-
+            --unreleased
+            --tag v999.0.0
+            --with-commit "feat(ci): validate release notes"
+            --with-commit "Unconventional release change"
+            --verbose
+        env:
+          OUTPUT: release-notes-ci.md
+
+      - name: Verify generated release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s release-notes-ci.md
+          grep -Fxq '### Features' release-notes-ci.md
+          grep -Fxq -- '- **ci:** Validate release notes' release-notes-ci.md
+          grep -Fxq '### Other Changes' release-notes-ci.md
+          grep -Fxq -- '- Unconventional release change' release-notes-ci.md
+          grep -Eq '/compare/v[0-9]+\.[0-9]+\.[0-9]+\.\.\.v999\.0\.0' release-notes-ci.md
+
   build:
     name: Build / ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
